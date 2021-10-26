@@ -1,10 +1,5 @@
-# Skyformer
 
-This repository is the official implementation of [Skyformer: Remodel Self-Attention with Gaussian Kernel and Nystr\"om Method](/doc/Skyformer_camera_ready.pdf) (NeurIPS 2021). 
-
-
-## Requirements
-
+# requirements
 
 ```
 python==3.6
@@ -21,9 +16,10 @@ conda env create -f environment.yml
 Note: Specific requirements for data preprocessing are not included here.
 
 
-# Data Preparation
 
-Processed files can be downloaded [here](https://drive.google.com/drive/folders/1rE0SjpeFKPFtgmWWjYCoIMz91UozHWWC?usp=sharing).
+
+
+# Data 
 
 1. Requirements
 ```
@@ -60,22 +56,29 @@ python create_text.py
 python create_cifar10.py
 ```
 
+
 Note: most source code comes from [LRA repo](https://github.com/google-research/long-range-arena).
 
 
 
 # Run 
 
-Modify the configuration in `config.py` and run
+Change the configuration in `config.py` and run
 ```
 CUDA_VISIBLE_DEVICES=0 python3 run_lra.py --mode train --attn softmax --task lra-text
 ```
 - mode: train, eval
 - attn: softmax, nystrom, linformer, reformer, perfromer, informer, bigbiard, softmaxRBF32 (`Kernelized Attention`), skecthedRBF32128（`Skyformer`)
-- task: lra-listops, lra-pathfinder, lra-retrieval, lra-text, lra-image
+- task: lra-listops, lra-pathfinder, lra-retrieval, lra-text
 
 
-# TODO
+# Check Tensorboard
+Run 
+```
+tensorboard --logdir=./log/lra_text_softmax.tensorboard --port 8123
+```
 
-- Clean Code
-- Test Env
+Visit with browser
+```
+http://localhost:8123/
+```
