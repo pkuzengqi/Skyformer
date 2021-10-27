@@ -23,7 +23,7 @@ Note: Specific requirements for data preprocessing are not included here.
 
 # Data Preparation
 
-Processed files can be downloaded [here](https://drive.google.com/drive/folders/1rE0SjpeFKPFtgmWWjYCoIMz91UozHWWC?usp=sharing).
+Processed files can be downloaded [here](https://drive.google.com/drive/folders/1rE0SjpeFKPFtgmWWjYCoIMz91UozHWWC?usp=sharing), or processed with the following steps:
 
 1. Requirements
 ```
@@ -68,14 +68,10 @@ Note: most source code comes from [LRA repo](https://github.com/google-research/
 
 Modify the configuration in `config.py` and run
 ```
-CUDA_VISIBLE_DEVICES=0 python3 run_lra.py --mode train --attn softmax --task lra-text
+python main.py --mode train --attn skyformer --task lra-text
 ```
-- mode: train, eval
-- attn: softmax, nystrom, linformer, reformer, perfromer, informer, bigbiard, softmaxRBF32 (`Kernelized Attention`), skecthedRBF32128（`Skyformer`)
-- task: lra-listops, lra-pathfinder, lra-retrieval, lra-text, lra-image
+- mode: `train`, `eval`
+- attn: `softmax`, `nystrom`, `linformer`, `reformer`, `perfromer`, `informer`, `bigbird`,  `kernelized`, `skyformer`
+- task: `lra-listops`, `lra-pathfinder`, `lra-retrieval`, `lra-text`, `lra-image`
 
 
-# TODO
-
-- Clean Code
-- Test Env
