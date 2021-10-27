@@ -390,13 +390,10 @@ def iterative_inv(mat, n_iter = 6, init_option = "original"):
 
  
 
-class SketchedAttentionRBF(nn.Module):
-
+# class SketchedAttentionRBF(nn.Module):
+class Skyformer(nn.Module):
     def __init__(self, config):
-        """
-        nb_features
 
-        """
         super().__init__()
 
         self.device = config["device"] if "device" in config else "cuda"
@@ -421,8 +418,6 @@ class SketchedAttentionRBF(nn.Module):
         # self.register_buffer('sketching_matrix', sketching_matrix)
         # self.register_buffer('random_sign', random_sign)
 
-        # TODO: enable other kernel function?
-        # self.kernel_fn = kernel_fn
         if config["sketched_kernel"] == "kernel_RS_RBF":
             self.kernel_fn = kernel_RS_RBF
 
@@ -442,8 +437,7 @@ class SketchedAttentionRBF(nn.Module):
         S = S.reshape(-1, nb_rows, nb_columns)
         # random_sign = (torch.randint(2, S.shape, device=self.device) * 2 - 1) * (math.sqrt(2 * n) / nb_rows / nb_columns)
         random_sign = torch.ones(S.shape, device=self.device)
-        # print('S', S[16])
-        # print(torch.unique(S[16], return_counts=True))
+
         return S, random_sign
 
     def forward(self, q, k, v, mask):
@@ -452,7 +446,6 @@ class SketchedAttentionRBF(nn.Module):
         device = q.device
         b, h, n, d = q.shape
         
-        # data_normalizer = n**(1/(2*d+3))
         data_normalizer = (32 ** -0.25)
         
 
@@ -460,47 +453,31 @@ class SketchedAttentionRBF(nn.Module):
         k = k * (mask[:, None, :, None] * data_normalizer)
         v = v * mask[:, None, :, None]
         
-        # print(q[0, 0], v[0, 0])
+
         
         non_padding_num = mask.sum(-1) # b
-        # print(non_padding_num)
+
 
         self.sketching_matrix, self.random_sign = self.uniform_sketching(
             n, self.accumulation, self.nb_features, non_padding_num) # bmd
         
-        # print(self.sketching_matrix, self.random_sign.shape)
-        
+
         create_kernel_sketch = partial(kernel_sketch, kernel_fn = self.kernel_fn,
            sketching_matrix = self.sketching_matrix, random_sign=self.random_sign, device = device)
         AS = create_kernel_sketch(q, k)  # b,h,2n, nb_feat
         Q = AS[:,:,:n] # b, h, n, nb_feat
         
-        # print(K[0, 2])
-        # STAS = AS[:,:,self.sketching_matrix].permute(0,1,4,2,3) * self.random_sign # bhmdp -> bhpmd
-        # STAS = torch.transpose(STAS, 2, 4).sum(dim=3) # bhpmd -> bhdmp -> bhdp
-        
+
         STAS = AS.transpose(1, 2)[torch.arange(b)[:, None, None], self.sketching_matrix] # bnhd -> bmdhd
         STAS = torch.einsum('bmdhe,bmd->bhde', STAS, self.random_sign) # bmdhd -> bhdd
-        # STAS = (STAS.permute(3,4,0,1,2) * self.random_sign).sum(-2).permute(2,0,3,1) # hdbmd -> hdbd -> bhdd
-        # STAS = STAS + 1e-2*torch.eye(STAS.shape[-1], device=self.device)
-        
-        # print(AS.shape, STAS[0, 0])
-        
+
         STAS = STAS + 1e-1*torch.eye(STAS.shape[-1], device=self.device)
-        # K = K + torch.eye(K.shape[-1], device=self.device)
-        # print(torch.linalg.svd(STAS[0, 0])[1])
-        # print(STAS[0, 0])
-        # K = la.solve(K + 1e-4*torch.eye(K.shape[-1])
-        # K = la.solve(STAS, torch.transpose(AS[:,:,n:], 2, 3))
-        # K = CG_solve_lin(STAS, torch.transpose(AS[:,:,n:], 2, 3), 5)
-        # K = torch.transpose(K, 2, 3) * mask[:, None, :, None]
-        
+ 
         K = AS[:,:,n:]
         
         
         ##################################################################
         D_STAS_inv = 1 / STAS.sum(-1)
-        # D_STAS_inv = D_STAS_inv * D_STAS_inv
         D_STAS_inv = torch.sqrt( D_STAS_inv)
         STAS = torch.einsum("...d,...de,...e->...de", D_STAS_inv, STAS, D_STAS_inv)
         
@@ -510,7 +487,7 @@ class SketchedAttentionRBF(nn.Module):
         
         K = torch.einsum("...nd,...d->...nd", K, D_STAS_inv) @ STAS_inv
         
-        # print(K[0, 0])
+
         
         K = torch.einsum("...nd,...d->...nd", K, D_STAS_inv) * mask[:, None, :, None]
         

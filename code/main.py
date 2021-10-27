@@ -80,11 +80,8 @@ def step_LRA(model, optimizer, lr_scheduler, ds_iter,amp_scaler,
         amp_scaler.unscale_(optimizer)
 
 
-        # for name, parms in model.named_parameters():
-        #     print('BEFORE -->name:', name, '-->grad_requirs:',parms.requires_grad, ' -->grad_value:',parms.grad)
+
         nn.utils.clip_grad_value_(model.parameters(), clip_value=1) # Gradient Clipping
-        # for name, parms in model.named_parameters():
-        #     print('AFTER-->name:', name, '-->grad_requirs:',parms.requires_grad, ' -->grad_value:',parms.grad)
 
 
         amp_scaler.step(optimizer)
@@ -162,10 +159,6 @@ def train_LRA(model, optimizer, lr_scheduler, ds_iter, amp_scaler,
                     torch.save({"model_state_dict":model.state_dict()}, checkpoint_path)
                     print('best model saved: step = ',train_step_idx, 'dev accu = ',dev_accu)
 
-                    # nearest5k = str(math.ceil((train_step_idx+1)/5000))
-                    # torch.save({"model_state_dict":model.state_dict()}, checkpoint_path+nearest5k)
-                    # print('best model saved to ',nearest5k)
-
             print_summary(summary["dev"], True, model, checkpoint_path)
             model.train()
 
@@ -192,7 +185,6 @@ def eval_LRA(model, optimizer, lr_scheduler, ds_iter, amp_scaler,
         print_summary(summary["test"], False, model, checkpoint_path)
 
 def get_args():
-    ### parse arguments###
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", type = str, default="train",
                         help="train eval")
@@ -203,7 +195,6 @@ def get_args():
     parser.add_argument("--task", type = str, default="lra-listops",
                         help = "lra-listops, lra-retrieval, lra-text, lra-pathfinder32-curv_contour_length_14")
     parser.add_argument('--random', type=int, default=42)
-    parser.add_argument("--do_debug", type=int, default=1, help='set to 1 if in debug mode; otherwise set to 0 ')
     parser.add_argument("--bz", type=int, default=0, help='set to 0 if using values in config')
     parser.add_argument("--lr", type=float, default=0, help='set to 0 if using values in config')
     parser.add_argument("--init", type=int, default=0, help='set to 0 if using values in config')
@@ -215,14 +206,6 @@ def main():
 
     if args.task == 'lra-pathfinder':
         args.task = 'lra-pathfinder32-curv_contour_length_14'
-
-
-    ## use 0 to debug; set args.do_debug to False when run in shell
-    if args.do_debug > 0:
-        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-    print('os.environ["CUDA_VISIBLE_DEVICES"]: \t', end='')
-    print(os.environ["CUDA_VISIBLE_DEVICES"])
-
 
 
     ### get model config ###
@@ -246,8 +229,8 @@ def main():
         training_config["eval_frequency"] = 2
         training_config["warmup"] = 2
 
-        ### log preparation ###
-    log_dir = './log-same-step-{}/'.format(args.random)
+    ### log preparation ###
+    log_dir = './log-{}/'.format(args.random)
     if not os.path.exists(log_dir):
         os.mkdir(log_dir)
     log_dir = os.path.join(log_dir, args.task)
@@ -273,27 +256,23 @@ def main():
 
 
 
-
-
     ### model preparation ###
     if args.task == "lra-retrieval":
         model = ModelForSCDual(model_config)
     else:
         model = ModelForSC(model_config)
 
-    # mark: specify the checkpoint to load
-    # checkpoint_path = os.path.join('./checkpoints_lra20k', 'lra-pathfinder32-curv_contour_length_14_softmaxQKV.47.model_15000')
 
-
-    # checkpoint_dir = './checkpoints_lra_samestep-{}'.format(args.random)
-    # if not os.path.exists(checkpoint_dir):
-    #     os.mkdir(checkpoint_dir)
-    checkpoint_path = os.path.join('./checkpoints_lra20k', '{}.{}.model'.format(args.checkpoint, args.random))
+    checkpoint_dir = './checkpoints-{}'.format(args.random)
+    if not os.path.exists(checkpoint_dir):
+        os.mkdir(checkpoint_dir)
+    checkpoint_path = os.path.join(checkpoint_dir, '{}.{}.model'.format(args.checkpoint, args.random))
     training_config["checkpoint_path"] = checkpoint_path
-    # if os.path.exists(checkpoint_path) and checkpoint_path != './checkpoints/test.model':
-    #     checkpoint = torch.load(checkpoint_path)
-    #     model.load_state_dict(checkpoint["model_state_dict"])
-    #     print("model loaded from: " + checkpoint_path)
+    if os.path.exists(checkpoint_path):
+        checkpoint = torch.load(checkpoint_path)
+        model.load_state_dict(checkpoint["model_state_dict"])
+        print("model loaded from: " + checkpoint_path)
+
 
     model = model.cuda()
     print(model)
@@ -308,19 +287,12 @@ def main():
 
 
     ### data preparation ###
-    if args.do_debug > 0:
-        a=enumerate(DataLoader(LRADataset(f"./data/lra_processed/{args.task}.dev.pickle", True), batch_size = training_config["batch_size"], drop_last = True))
-        ds_iter = {
-            "train":a,
-            "dev":a,
-            "test":a,
-        }
-    else:
-        ds_iter = {
-            "train":enumerate(DataLoader(LRADataset(f"./data/lra_processed/{args.task}.train.pickle", True), batch_size = training_config["batch_size"], drop_last = True)),
-            "dev":enumerate(DataLoader(LRADataset(f"./data/lra_processed/{args.task}.dev.pickle", True), batch_size = training_config["batch_size"], drop_last = True)),
-            "test":enumerate(DataLoader(LRADataset(f"./data/lra_processed/{args.task}.test.pickle", False), batch_size = training_config["batch_size"], drop_last = True)),
-        }
+
+    ds_iter = {
+        "train":enumerate(DataLoader(LRADataset(f"./data/lra_processed/{args.task}.train.pickle", True), batch_size = training_config["batch_size"], drop_last = True)),
+        "dev":enumerate(DataLoader(LRADataset(f"./data/lra_processed/{args.task}.dev.pickle", True), batch_size = training_config["batch_size"], drop_last = True)),
+        "test":enumerate(DataLoader(LRADataset(f"./data/lra_processed/{args.task}.test.pickle", False), batch_size = training_config["batch_size"], drop_last = True)),
+    }
 
     ### training preparation ###
 
