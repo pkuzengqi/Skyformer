@@ -195,9 +195,6 @@ def get_args():
     parser.add_argument("--task", type = str, default="lra-listops",
                         help = "lra-listops, lra-retrieval, lra-text, lra-pathfinder32-curv_contour_length_14")
     parser.add_argument('--random', type=int, default=42)
-    parser.add_argument("--bz", type=int, default=0, help='set to 0 if using values in config')
-    parser.add_argument("--lr", type=float, default=0, help='set to 0 if using values in config')
-    parser.add_argument("--init", type=int, default=0, help='set to 0 if using values in config')
     args = parser.parse_args()
     return args
 
@@ -218,16 +215,6 @@ def main():
     model_config["random_seed"] = args.random
 
     training_config = Config[args.task]["training"]
-    if args.bz > 0:
-        training_config["batch_size"] = args.bz
-    if args.lr > 0:
-        training_config["learning_rate"] = args.lr
-    if args.init > 0:
-        training_config["num_init_steps"] = args.init
-    if args.do_debug > 0:
-        training_config["num_train_steps"] = 20
-        training_config["eval_frequency"] = 2
-        training_config["warmup"] = 2
 
     ### log preparation ###
     log_dir = './log-{}/'.format(args.random)

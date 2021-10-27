@@ -1,0 +1,13 @@
+torch==1.8.0
+transformers==4.5.0
+performer-pytorch
+tensorboard
+axial_positional_embedding
+local-attention
+fsspec
+wrapt
+opt_einsum
+gast
+astunparse
+psutil
+einops

@@ -34,7 +34,7 @@ def attn_selector(attn_type, config, W_q=None, W_k=None, W_v=None):
         attn = LSHAttention(config, W_q, W_k, W_v)
     elif attn_type.startswith("skyformer"):
         from models.attention_skyformer import Skyformer
-        attn = SketchedAttention(config)
+        attn = Skyformer(config)
 
     return attn
 

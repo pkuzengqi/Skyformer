@@ -5,17 +5,11 @@ This repository is the official implementation of [Skyformer: Remodel Self-Atten
 
 ## Requirements
 
-
+To install requirements in a conda environment:
 ```
-python==3.6
-torch==1.8.0
-transformers==4.5.0
-performer-pytorch
-```
-
-If you use conda, you can create an environment from this package with the following command:
-```
-conda env create -f environment.yml
+conda create -n skyformer python=3.6
+conda activate skyformer
+pip install -r requirements.txt
 ```
 
 Note: Specific requirements for data preprocessing are not included here.
@@ -44,7 +38,7 @@ tar zxvf lra-release.gz
 mkdir lra_processed
 cd ..
 ```
-6.The directory structure would be
+6.The directory structure would be (assuming the root dir is `code`)
 ```
 ./data/lra-processed
 ./data/long-range-arena-main

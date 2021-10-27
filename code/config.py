@@ -255,6 +255,7 @@ image={
             "bigbird":{"bz_rate":1,"num_random_blocks":3, "block_size":64},
             "reformer":{"bz_rate":1,"num_hash":2},
         }
+}
 
 Config = {
     "lra-listops":listops,

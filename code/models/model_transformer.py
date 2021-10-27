@@ -5,7 +5,7 @@ import numpy as np
 import math
 from torch.utils.checkpoint import checkpoint
 
-from models.attention import Attention, AttentionQKV
+from models.attention import Attention
 
 class Embeddings(nn.Module):
     def __init__(self, config):
@@ -50,14 +50,8 @@ class TransformerLayer(nn.Module):
 
         self.norm1 = nn.LayerNorm(config["transformer_dim"])
         
-        # print(config)
         
-        if 'Q_dim' in config and config["Q_dim"] > 0: # mark: a variant of different QKV dimensions
-            # print(66666666666666666666)
-            self.mha = AttentionQKV(config)
-        else:
-            # print(555555555555555555555)
-            self.mha = Attention(config)
+        self.mha = Attention(config)
         self.dropout1 = torch.nn.Dropout(p = config["dropout_prob"])
         self.norm2 = nn.LayerNorm(config["transformer_dim"])
 
