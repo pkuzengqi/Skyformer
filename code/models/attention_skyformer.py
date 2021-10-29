@@ -9,15 +9,6 @@ from models.attention import SoftmaxAttention as SelfAttention
 from config import Config
 from torch.autograd import Function, gradcheck
 
-def exists(val):
-    return val is not None
-
-def empty(tensor):
-    return tensor.numel() == 0
-
-def default(val, d):
-    return val if exists(val) else d
-
 def linear_attention(q, k, v): # for SM kernel
     k_cumsum = k.sum(dim = -2)
     D_inv = 1. / torch.einsum('...nd,...d->...n', q, k_cumsum.type_as(q))
@@ -51,6 +42,7 @@ def kernel_SM(X1, X2=None, X2_accu=False):
     # return result, product
 
 def kernel_RS_SM(X1, X2=None, X2_accu=False, random_sign=None):
+    # RS for random sign
     if X2 is None:
         X2 = X1
         X2_accu = False
@@ -85,31 +77,6 @@ def kernel_RS_SM1(X1, X2=None, X2_accu=False, random_sign=None):
     return result
     # return result, product
 
-def kernel_RBF(X1, X2=None, X2_accu=False):
-
-    # todo
-
-    if X2 is None:
-        X2 = X1
-        X2_accu = False
-
-    diag_X1 = torch.abs(X1) ** power
-    diag_X1 = torch.sum(diag_X1, dim=-1) / scale
-    diag_X1 = diag_X1.unsqueeze(dim=-1)
-    diag_X2 = torch.abs(X2) ** power
-    diag_X2 = torch.sum(diag_X2, dim=-1) / scale
-    diag_X2 = diag_X2.unsqueeze(dim=-2)
-
-    if X2_accu:
-        diag_X1 = diag_X1.unsqueeze(dim=-3)
-        product = torch.einsum('...np,...mdp->...mnd', X1, X2) - diag_X1 - diag_X2
-        result = torch.einsum('bhnmd,bmd->bhnd', result, random_sign)
-    else:
-        product = torch.einsum('...np,...dp->...nd', X1, X2) - diag_X1 - diag_X2
-        result = torch.exp(product)
-
-    return result
-
 def kernel_RS_RBF(X1, X2=None, X2_accu=False, random_sign=None):
 
     # todo
@@ -129,35 +96,6 @@ def kernel_RS_RBF(X1, X2=None, X2_accu=False, random_sign=None):
         result = torch.exp(product)
         result = torch.transpose(result, 2, 3) # nmd
         result = torch.einsum('bhnmd,bmd->bhnd', result, random_sign)
-    else:
-        product = torch.einsum('...np,...dp->...nd', X1, X2) - diag_X1 - diag_X2
-        result = torch.exp(product)
-
-    return result
-    
-    
-def kernel_RS_RBF0(X1, X2=None, X2_accu=False, random_sign=None):
-
-    # todo
-
-    if X2 is None:
-        X2 = X1
-        X2_accu = False
-
-    diag_X1 = torch.abs(X1) ** power
-    diag_X1 = torch.sum(diag_X1, dim=-1) / scale
-    diag_X1 = diag_X1.unsqueeze(dim=-1)
-    diag_X2 = torch.abs(X2) ** power
-    diag_X2 = torch.sum(diag_X2, dim=-1) / scale
-    diag_X2 = diag_X2.unsqueeze(dim=-2)
-
-    if X2_accu:
-        diag_X1 = diag_X1.unsqueeze(dim=-3)
-        product = torch.einsum('...np,...mdp->...mnd', X1, X2) - diag_X1 - diag_X2
-        result = torch.exp(product)
-        result = torch.transpose(result, 2, 3) # nmd
-        result = result * random_sign
-        result = result.sum(dim=3)
     else:
         product = torch.einsum('...np,...dp->...nd', X1, X2) - diag_X1 - diag_X2
         result = torch.exp(product)
@@ -191,184 +129,6 @@ def kernel_sketch(q, k, *, kernel_fn, sketching_matrix, random_sign, normalize_d
     # print()
 
     return AS.type_as(q)
-
-def uniform_sketching(n, nb_rows, nb_columns, device):
-    w = torch.ones(n, device=device)
-    S = torch.multinomial(w, nb_rows * nb_columns, replacement=False).reshape(nb_rows, nb_columns)
-    random_sign = (torch.randint(2, S.shape, device=device) * 2 - 1) * ( math.sqrt(n) / nb_rows / nb_columns)
-    return S, random_sign
-
-# not used
-def pinv(X, hermitian = True, eps = 1e-4):
-    if hermitian:
-        Sigma, U = torch.symeig(X, eigenvectors=True)
-        Sigma = torch.where(Sigma > eps, 1 / Sigma, torch.tensor(0.))
-        # print(U.shape, Sigma.shape)
-        res = torch.einsum('...md,...nd,...d->...mn', U, U, Sigma)
-        return res
-    else:
-        return torch.pinverse(X)
-
-# Now CG_solve_lin works for A X = B, where A is spare, B is dense.
-def CG_solve_lin(A, B = "I", n_iter = 6, tol = 1e-14):
-
-    # Solve X from linear system AX = B, default B = I
-    # stop criterion:
-    #  reach n_iter, or eps = mean(R_ij^2) < tol
-
-    # A is ...* m * m Tensor
-    # B is ... * m Tensor or ... * m * n tensor
-    A_dim   = len(A.size())
-    A_shape = [A.size(i) for i in range(A_dim)]
-
-    # create identity tensor (last 2 dims is I, repeat for other dims)
-    if B == "I":    
-        shape_ls = A_shape[ :-2] + [1, 1]
-        B = torch.eye(A.size(-1), device = A.device).repeat(shape_ls)
-
-    # make sure the dim(B) = dim(A) or dim(A) - 1
-    if len(B.size()) == len(A.size()):
-        pass
-    elif len(B.size()) == (len(A.size()) -1):
-        # reshape B to dim(A)
-        B0_shape = [B.size(i) for i in range(len(B.size()))]
-        if B0_shape[: -1] == A_shape[: -2]:
-            B_shape = B0_shape + [1]
-            B = B.reshape(B_shape)
-        else:
-            print("the first dims of B must match these of mat")
-            return 0
-    else:
-        print("dim(B) should equal to dim(mat) or dim(mat) - 1!")
-        return 0
-
-    # X = torch.zeros(B.size())
-    X = 0
-    D, R0 = B, B
-    i, eps = 0, 1e-3
-
-    while i < n_iter and eps > tol:
-        # r_{i-1}'  r_{i-1}
-        # num = torch.einsum('...ij, ...ij -> ...j', R0, R0)
-        num = (R0 * R0).sum(-2)
-        # num[num<eps] = eps
-        # d_{i-1}' A d_{i-1}
-        # den = torch.einsum('...ji, ...jk, ...ki -> ...i', D, A, D)
-
-        AD = A @ D
-        # den = torch.sum(D * AD, -2) + eps
-        den = torch.sum(D * AD, -2)
-        # den[den<eps] = eps
-
-        # alpha = (r_{i-1}'  r_{i-1}) / (d_{i-1}' A d_{i-1})
-        alpha = num / den
-        # X_i = X_{i-1} + alpha d_{i-1}
-        X = X + torch.einsum('...j, ...ij -> ...ij', alpha, D)
-        # r_i = r_{i-1} - alhpa A d_{i-1}
-        # Ad = torch.einsum('...ij, ...jk -> ...ik', A, D)
-
-        # print()
-        R = R0 - torch.einsum('...j, ...ij -> ...ij', alpha, AD)   
-        # beta = (r_{i}' r_{i}) / (r_{i-1}' r_{i-1})
-        # beta = torch.einsum('...ij, ...ij -> ...j', R, R) / num
-        # num = num + eps
-        # num[num<eps] += eps
-        
-        
-        beta = (R * R).sum(-2) / num
-        # d_i = r_u + beta d_{i-1}
-        D = R + torch.einsum('...j, ...ij -> ...ij', beta, D)
-        R0 = R
-        # inf norm: max(sum(abs(x), dim=1))
-        # do row abs sum frst. Then take max
-        # eps = torch.mean(R0 * R0)
-        # eps = 1
-        i += 1
-        # print('eps: ', eps, "iter: ", i)
-        # print("iter: ", i, 'X[16]inCG', X[16])
-
-    return X
-    
-    
-def CG_solve_lin_check(A, B = "I", n_iter = 6, tol = 1e-14):
-
-    # Solve X from linear system AX = B, default B = I
-    # stop criterion:
-    #  reach n_iter, or eps = mean(R_ij^2) < tol
-
-    # A is ...* m * m Tensor
-    # B is ... * m Tensor or ... * m * n tensor
-    A_dim   = len(A.size())
-    A_shape = [A.size(i) for i in range(A_dim)]
-
-    # create identity tensor (last 2 dims is I, repeat for other dims)
-    if B == "I":    
-        shape_ls = A_shape[ :-2] + [1, 1]
-        B = torch.eye(A.size(-1), device = A.device).repeat(shape_ls)
-
-    # make sure the dim(B) = dim(A) or dim(A) - 1
-    if len(B.size()) == len(A.size()):
-        pass
-    elif len(B.size()) == (len(A.size()) -1):
-        # reshape B to dim(A)
-        B0_shape = [B.size(i) for i in range(len(B.size()))]
-        if B0_shape[: -1] == A_shape[: -2]:
-            B_shape = B0_shape + [1]
-            B = B.reshape(B_shape)
-        else:
-            print("the first dims of B must match these of mat")
-            return 0
-    else:
-        print("dim(B) should equal to dim(mat) or dim(mat) - 1!")
-        return 0
-
-    # X = torch.zeros(B.size())
-    X = 0
-    D, R0 = B, B
-    i, eps = 0, 1e-3
-
-    while i < n_iter and eps > tol:
-        # r_{i-1}'  r_{i-1}
-        # num = torch.einsum('...ij, ...ij -> ...j', R0, R0)
-        num = (R0 * R0).sum(-2)
-        # num[num<eps] = eps
-        # d_{i-1}' A d_{i-1}
-        # den = torch.einsum('...ji, ...jk, ...ki -> ...i', D, A, D)
-
-        AD = A @ D
-        # den = torch.sum(D * AD, -2) + eps
-        den = torch.sum(D * AD, -2)
-        # den[den<eps] = eps
-
-        # alpha = (r_{i-1}'  r_{i-1}) / (d_{i-1}' A d_{i-1})
-        alpha = num / den
-        # X_i = X_{i-1} + alpha d_{i-1}
-        X = X + torch.einsum('...j, ...ij -> ...ij', alpha, D)
-        # r_i = r_{i-1} - alhpa A d_{i-1}
-        # Ad = torch.einsum('...ij, ...jk -> ...ik', A, D)
-
-        # print()
-        R = R0 - torch.einsum('...j, ...ij -> ...ij', alpha, AD)   
-        # beta = (r_{i}' r_{i}) / (r_{i-1}' r_{i-1})
-        # beta = torch.einsum('...ij, ...ij -> ...j', R, R) / num
-        # num = num + eps
-        # num[num<eps] += eps
-        
-        
-        beta = (R * R).sum(-2) / num
-        # d_i = r_u + beta d_{i-1}
-        D = R + torch.einsum('...j, ...ij -> ...ij', beta, D)
-        R0 = R
-        # inf norm: max(sum(abs(x), dim=1))
-        # do row abs sum frst. Then take max
-        # eps = torch.mean(R0 * R0)
-        # eps = 1
-        i += 1
-        # print('eps: ', eps, "iter: ", i)
-        # print("iter: ", i, 'X[16]inCG', X[16])
-        print(X.abs().max())
-        
-    return X
         
 def iterative_inv(mat, n_iter = 6, init_option = "original"):
     
@@ -412,18 +172,9 @@ class Skyformer(nn.Module):
         self.dim_heads = config["head_dim"]
         self.nb_features = nb_features
 
-        # self.create_projection = partial(gaussian_orthogonal_random_matrix, nb_rows = self.nb_features, nb_columns = dim_heads, scaling = ortho_scaling, qr_uniform_q = qr_uniform_q)
-        # self.create_sketching = partial(uniform_sketching, n=2*n, nb_rows = accumulation, nb_columns = nb_features, device=self.device)
-        # sketching_matrix, random_sign = self.create_sketching()
-        # self.register_buffer('sketching_matrix', sketching_matrix)
-        # self.register_buffer('random_sign', random_sign)
-
         if config["sketched_kernel"] == "kernel_RS_RBF":
             self.kernel_fn = kernel_RS_RBF
 
-        # if this is turned on, no projection will be used
-        # queries and keys will be softmax-ed as in the original efficient attention paper
-        # self.no_projection = no_projection
         self.no_projection = config["no_projection"]
 
 
@@ -497,14 +248,3 @@ class Skyformer(nn.Module):
         out = torch.matmul(Q, context)    
         
         return out   
-
-        
-
-       
-
-
-        
-        
-scale = 2 
-power = 2
-
