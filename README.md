@@ -2,7 +2,7 @@
 
 This repository is the official implementation of [Skyformer: Remodel Self-Attention with Gaussian Kernel and Nystr\"om Method](/doc/Skyformer_camera_ready.pdf) (NeurIPS 2021). 
 
-![image](/doc/attention.png)
+![image](/doc/Skyformer_model.jpg)
 
 
 ## Requirements
