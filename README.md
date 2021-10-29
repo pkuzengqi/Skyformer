@@ -2,6 +2,8 @@
 
 This repository is the official implementation of [Skyformer: Remodel Self-Attention with Gaussian Kernel and Nystr\"om Method](/doc/Skyformer_camera_ready.pdf) (NeurIPS 2021). 
 
+![image](/doc/attention.png)
+
 
 ## Requirements
 
@@ -69,3 +71,13 @@ python main.py --mode train --attn skyformer --task lra-text
 - task: `lra-listops`, `lra-pathfinder`, `lra-retrieval`, `lra-text`, `lra-image`
 
 
+## Reference
+
+```bibtex
+@inproceedings{Skyformer,
+    title={Skyformer: Remodel Self-Attention with Gaussian Kernel and Nystr\"om Method}, 
+    author={Yifan Chen and Qi Zeng and Heng Ji and Yun Yang},
+    booktitle={NeurIPS},
+    year={2021}
+}
+```
