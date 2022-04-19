@@ -76,8 +76,13 @@ python main.py --mode train --attn skyformer --task lra-text
 ```bibtex
 @inproceedings{Skyformer,
     title={Skyformer: Remodel Self-Attention with Gaussian Kernel and Nystr\"om Method}, 
-    author={Yifan Chen and Qi Zeng and Heng Ji and Yun Yang},
-    booktitle={NeurIPS},
+    author={Yifan Chen and 
+            Qi Zeng and 
+            Heng Ji and 
+            Yun Yang},
+    booktitle={Advances in Neural Information Processing Systems 35: Annual Conference on Neural Information Processing Systems 2021, NeurIPS 2021, December
+               6-14, 2021, virtual},
     year={2021}
 }
+
 ```
